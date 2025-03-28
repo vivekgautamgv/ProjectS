@@ -8,6 +8,10 @@ import plotly.graph_objs as go
 from data.stock_data import get_stock_data
 from models.technicals import calculate_technical_indicators, generate_signals
 from models.pricing_models import black_scholes, monte_carlo_option_price
+from models.pricing_models import black_scholes, monte_carlo_option_price
+from scipy.optimize import newton
+import requests
+from datetime import datetime, timedelta
 st.set_page_config(
     page_title="Trading Analytics Suite",
     layout="wide",
@@ -94,10 +98,10 @@ try:
                 st.plotly_chart(fig2, use_container_width=True)
                 st.plotly_chart(fig3, use_container_width=True)
 
+except Exception as e:
+    st.error(f"Error fetching data: {str(e)}")
 
 # Update main_app.py (add after stock section)
-from models.pricing_models import black_scholes, monte_carlo_option_price
-
 st.header("Options Pricing Analysis")
 option_tab1, option_tab2, option_tab3 = st.tabs(["Black-Scholes", "Monte Carlo", "Model Comparison"])
 
@@ -310,6 +314,160 @@ with chain_tab3:
                         .style.format("{:.2f}")
                         .background_gradient(subset=['Put Price'], cmap='Reds'),
                         height=400)
+            
+# main_app.py (add these new sections after previous code)
+from scipy.optimize import newton
+import requests
+from datetime import datetime, timedelta
+
+# --------------------------
+# Portfolio Risk Analyzer
+# --------------------------
+st.header("Portfolio Risk Analysis")
+risk_tab1, risk_tab2 = st.tabs(["Value at Risk", "Stress Testing"])
+
+with risk_tab1:
+    st.subheader("Portfolio Value at Risk (VaR)")
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        portfolio = st.text_area("Enter Portfolio (Ticker:Quantity)", 
+                               "AAPL:100\nGOOG:50\nTSLA:200")
+        confidence_level = st.slider("Confidence Level", 90, 99, 95)
+        lookback_days = st.number_input("Lookback Period (Days)", 30, 1000, 252)
+        
+    with col2:
+        if st.button("Calculate VaR"):
+            try:
+                # Parse portfolio
+                positions = {line.split(':')[0]:int(line.split(':')[1]) 
+                            for line in portfolio.split('\n') if line.strip()}
                 
+                # Get historical prices
+                prices = yf.download(list(positions.keys()), 
+                                    period=f"{lookback_days}d")['Adj Close']
+                
+                # Calculate daily returns
+                returns = prices.pct_change().dropna()
+                
+                # Portfolio returns
+                weights = np.array(list(positions.values()))
+                port_returns = (returns * weights).sum(axis=1)
+                
+                # VaR calculation
+                var = np.percentile(port_returns, 100 - confidence_level)
+                current_value = (prices.iloc[-1] * weights).sum()
+                
+                st.metric(f"{confidence_level}% Daily VaR", 
+                         f"${-var*current_value:.2f}",
+                         help="Maximum expected loss under normal market conditions")
+                
+                # Plot distribution
+                fig = go.Figure()
+                fig.add_trace(go.Histogram(x=port_returns, name='Returns'))
+                fig.add_vline(x=var, line_dash="dash", line_color="red",
+                             annotation_text=f"VaR Threshold: {var:.2%}")
+                fig.update_layout(title='Portfolio Returns Distribution',
+                                 height=400)
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"VaR Calculation Error: {str(e)}")
+
+# --------------------------
+# Options Strategy Backtester
+# --------------------------
+st.header("Options Strategy Analyzer")
+strategy_type = st.selectbox("Select Strategy", 
+                            ["Straddle", "Strangle", "Iron Condor", "Custom"])
+
+if strategy_type != "Custom":
+    col1, col2 = st.columns(2)
+    with col1:
+        s_underlying = st.number_input("Underlying Price", 50.0, 500.0, 100.0)
+        s_vol = st.number_input("Volatility (%)", 10.0, 150.0, 30.0) / 100
+        s_days = st.number_input("Days to Expiry", 1, 365, 30)
+        
+    with col2:
+        # Strategy-specific parameters
+        if strategy_type == "Straddle":
+            strike = st.number_input("Strike Price", 50.0, 500.0, 100.0)
+            payoff = calculate_straddle_payoff(s_underlying, strike, s_vol, s_days/365)
+        elif strategy_type == "Iron Condor":
+            # Add IC parameters
+            pass
+            
+    # Display payoff diagram
+    fig = plot_strategy_payoff(payoff)
+    st.plotly_chart(fig, use_container_width=True)
+
+# --------------------------
+# Implied Volatility Calculator
+# --------------------------
+with st.expander("Implied Volatility Calculator"):
+    iv_col1, iv_col2 = st.columns(2)
+    with iv_col1:
+        iv_price = st.number_input("Option Market Price", 0.01, 1000.0, 10.0)
+        iv_S = st.number_input("Underlying Price", 0.01, 1000.0, 100.0)
+        iv_K = st.number_input("Strike Price", 0.01, 1000.0, 110.0)
+        iv_T = st.number_input("Days to Expiry", 1, 3650, 30) / 365
+        iv_r = risk_free_rate
+        iv_type = st.radio("Option Type", ["Call", "Put"])
+        
+    with iv_col2:
+        try:
+            iv = calculate_implied_volatility(iv_price, iv_S, iv_K, iv_T, iv_r, iv_type.lower())
+            st.metric("Implied Volatility", f"{iv:.2%}")
+            
+            # IV vs Historical comparison
+            hist_vol = get_historical_volatility(iv_S, 30)  # 30-day historical vol
+            st.write(f"30-Day Historical Volatility: {hist_vol:.2%}")
+            
+            # Plot IV surface for strike/expiry
+            if st.button("Show IV Surface"):
+                st.plotly_chart(plot_iv_surface(iv_S), use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"IV Calculation Error: {str(e)}")
+
+# --------------------------
+# Market News Integration
+# --------------------------
+st.header("Market News & Sentiment")
+news_source = st.selectbox("News Source", ["General", "Stocks", "Crypto", "Options"])
+
+try:
+    news = get_market_news(news_source)
+    for item in news[:5]:
+        with st.expander(item['title']):
+            st.write(f"**Source:** {item['source']}")
+            st.write(f"**Published:** {item['published']}")
+            st.write(item['summary'])
+            st.markdown(f"[Read More]({item['url']})")
 except Exception as e:
-    st.error(f"Error fetching data: {str(e)}")
+    st.warning(f"News feed unavailable: {str(e)}")
+
+# --------------------------
+# Portfolio Tracker
+# --------------------------
+if 'portfolio' not in st.session_state:
+    st.session_state.portfolio = {}
+
+with st.sidebar.expander("My Portfolio"):
+    pt_col1, pt_col2 = st.columns(2)
+    with pt_col1:
+        pt_ticker = st.text_input("Add Ticker")
+    with pt_col2:
+        pt_qty = st.number_input("Shares", 1, 10000, 100)
+        
+    if st.button("Add to Portfolio"):
+        if pt_ticker:
+            st.session_state.portfolio[pt_ticker] = pt_qty
+            
+    st.subheader("Current Holdings")
+    for ticker, qty in st.session_state.portfolio.items():
+        st.write(f"{ticker}: {qty} shares")
+
+
+
+

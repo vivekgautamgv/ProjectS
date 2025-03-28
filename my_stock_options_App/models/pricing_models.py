@@ -54,3 +54,34 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type='call'):
         'vega': vega,
         'theta': theta
     }
+
+
+# models/pricing_models.py (add new functions)
+def calculate_implied_volatility(market_price, S, K, T, r, option_type='call'):
+    """Calculate IV using Newton-Raphson method"""
+    def black_scholes_error(sigma):
+        return black_scholes(S, K, T, r, sigma, option_type) - market_price
+        
+    try:
+        iv = newton(black_scholes_error, 0.3, maxiter=100)
+        return iv
+    except:
+        raise ValueError("Failed to converge")
+
+def dividend_adjusted_bs(S, K, T, r, q, sigma, option_type='call'):
+    """Black-Scholes with dividend yield"""
+    d1 = (np.log(S/K) + (r - q + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T)
+    
+    if option_type == 'call':
+        price = S*np.exp(-q*T)*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2)
+    else:
+        price = K*np.exp(-r*T)*norm.cdf(-d2) - S*np.exp(-q*T)*norm.cdf(-d1)
+    return price
+
+def calculate_straddle_payoff(S, K, sigma, T):
+    """Calculate straddle payoff profile"""
+    strikes = np.linspace(S*0.5, S*1.5, 100)
+    call_payoff = np.maximum(strikes - K, 0)
+    put_payoff = np.maximum(K - strikes, 0)
+    return call_payoff + put_payoff
