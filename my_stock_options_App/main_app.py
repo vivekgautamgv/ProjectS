@@ -1,17 +1,21 @@
 # main_app.py
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 import yfinance as yf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
-from data.stock_data import get_stock_data
+from stock_data import get_stock_data # type: ignore
 from models.technicals import calculate_technical_indicators, generate_signals
 from models.pricing_models import black_scholes, monte_carlo_option_price
 from models.pricing_models import black_scholes, monte_carlo_option_price
 from scipy.optimize import newton
 import requests
 from datetime import datetime, timedelta
+
 st.set_page_config(
     page_title="Trading Analytics Suite",
     layout="wide",
