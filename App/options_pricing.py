@@ -1,23 +1,26 @@
 import streamlit as st
 import numpy as np
 import scipy.stats as si
-import math
+import pandas as pd
+import plotly.graph_objects as go
+import yfinance as yf
 
 def show():
     st.title("📈 Options Pricing & Analysis")
 
     # 📌 Select Model
-    model_choice = st.radio("Select Pricing Model:", ["Black-Scholes", "Monte Carlo Simulation", "Option Greeks"], horizontal=True)
+    model_choice = st.radio("Select Pricing Model:", ["Black-Scholes", "Monte Carlo Simulation", "Option Greeks", "Option Chain Analysis"], horizontal=True)
 
     # 📌 Input Fields
     st.subheader("Enter Option Parameters")
     col1, col2 = st.columns(2)
-    
+
     with col1:
+        ticker = st.text_input("Stock Ticker", "AAPL").upper()
         S = st.number_input("Stock Price (S)", value=100.0, step=1.0)
         K = st.number_input("Strike Price (K)", value=100.0, step=1.0)
         T = st.number_input("Time to Expiration (Years, T)", value=1.0, step=0.1)
-    
+
     with col2:
         r = st.number_input("Risk-Free Rate (r)", value=0.05, step=0.01)
         sigma = st.number_input("Volatility (σ)", value=0.2, step=0.01)
@@ -38,7 +41,7 @@ def show():
     # 📌 Monte Carlo Simulation
     def monte_carlo_simulation(S, K, T, r, sigma, option_type, simulations=10000):
         np.random.seed(42)
-        dt = T / 252  # Assume 252 trading days in a year
+        dt = T / 252  # Assume 252 trading days
         stock_prices = np.zeros(simulations)
 
         for i in range(simulations):
@@ -47,7 +50,7 @@ def show():
             stock_prices[i] = max(ST - K, 0) if option_type == "Call" else max(K - ST, 0)
 
         option_price = np.exp(-r * T) * np.mean(stock_prices)
-        return round(option_price, 2)
+        return round(option_price, 2), stock_prices
 
     # 📌 Greeks Calculation
     def option_greeks(S, K, T, r, sigma, option_type):
@@ -71,8 +74,14 @@ def show():
             st.success(f"Black-Scholes {option_type} Option Price: **${price}**")
 
         elif model_choice == "Monte Carlo Simulation":
-            price = monte_carlo_simulation(S, K, T, r, sigma, option_type)
+            price, stock_prices = monte_carlo_simulation(S, K, T, r, sigma, option_type)
             st.success(f"Monte Carlo {option_type} Option Price: **${price}**")
+
+            # 📈 Monte Carlo Visualization
+            fig = go.Figure()
+            fig.add_trace(go.Histogram(x=stock_prices, nbinsx=50, name="Simulated Prices", marker_color="blue"))
+            fig.update_layout(title="Monte Carlo Simulation of Stock Prices", xaxis_title="Price", yaxis_title="Frequency")
+            st.plotly_chart(fig, use_container_width=True)
 
         elif model_choice == "Option Greeks":
             delta, gamma, theta, vega, rho = option_greeks(S, K, T, r, sigma, option_type)
@@ -83,12 +92,41 @@ def show():
             st.write(f"📍 **Vega (Volatility Sensitivity):** {vega}")
             st.write(f"📍 **Rho (Interest Rate Sensitivity):** {rho}")
 
-    # 📌 Explanation
-    st.subheader("📚 Model Explanation")
-    if model_choice == "Black-Scholes":
-        st.write("The **Black-Scholes Model** is used for pricing European call and put options.")
-    elif model_choice == "Monte Carlo Simulation":
-        st.write("Monte Carlo Simulation estimates option prices by simulating thousands of possible stock price movements.")
-    elif model_choice == "Option Greeks":
-        st.write("Option Greeks help measure the sensitivity of an option's price to different factors like stock price changes, volatility, and time decay.")
+    # 📌 Option Chain Analysis
+    if model_choice == "Option Chain Analysis":
+        st.subheader("📊 Live Option Chain Data")
 
+        def fetch_option_chain(ticker):
+            try:
+                stock = yf.Ticker(ticker)
+                expiry_dates = stock.options  # Get available expiration dates
+
+                # Select expiration date
+                expiry = st.selectbox("Select Expiration Date", expiry_dates)
+                option_chain = stock.option_chain(expiry)
+
+                # Combine call & put data
+                calls = option_chain.calls[["strike", "lastPrice", "bid", "ask", "openInterest"]]
+                puts = option_chain.puts[["strike", "lastPrice", "bid", "ask", "openInterest"]]
+
+                calls["Type"] = "Call"
+                puts["Type"] = "Put"
+                data = pd.concat([calls, puts])
+
+                return data
+
+            except Exception as e:
+                st.error("⚠ Unable to fetch option chain. Check the ticker.")
+                return None
+
+        option_data = fetch_option_chain(ticker)
+
+        if option_data is not None:
+            st.dataframe(option_data)
+
+            # 📈 Visualization: Bid-Ask Spread
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=option_data["strike"], y=option_data["bid"], mode="lines+markers", name="Bid"))
+            fig.add_trace(go.Scatter(x=option_data["strike"], y=option_data["ask"], mode="lines+markers", name="Ask"))
+            fig.update_layout(title="Bid-Ask Spread", xaxis_title="Strike Price", yaxis_title="Price")
+            st.plotly_chart(fig, use_container_width=True)
