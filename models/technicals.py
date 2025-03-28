@@ -26,20 +26,6 @@ def calculate_technical_indicators(df):
     df['Upper_Band'] = df['Middle_Band'] + 2*df['Close'].rolling(window=20).std()
     df['Lower_Band'] = df['Middle_Band'] - 2*df['Close'].rolling(window=20).std()
     
-    """Add 2 more indicators (now total 6)"""
-    # Existing code...
-    
-    # Stochastic Oscillator (14-day)
-    low14 = df['Low'].rolling(14).min()
-    high14 = df['High'].rolling(14).max()
-    df['%K'] = 100 * ((df['Close'] - low14) / (high14 - low14))
-    df['%D'] = df['%K'].rolling(3).mean()
-    
-    # Volume Weighted Average Price (VWAP)
-    cum_vol = df['Volume'].cumsum()
-    cum_vol_price = (df['Volume'] * (df['High'] + df['Low'] + df['Close']) / 3).cumsum()
-    df['VWAP'] = cum_vol_price / cum_vol
-    
     return df
 
 def generate_signals(df):
@@ -60,26 +46,4 @@ def generate_signals(df):
     
     # Combine signals
     signals['Final_Signal'] = signals[['SMA_Signal', 'RSI_Signal', 'MACD_Signal']].mean(axis=1)
-
-    """Enhanced signal generation"""
-    # Existing signals...
-    
-    # Stochastic Signals
-    signals['Stoch_Signal'] = 0
-    signals.loc[(df['%K'] < 20) & (df['%D'] < 20), 'Stoch_Signal'] = 1
-    signals.loc[(df['%K'] > 80) & (df['%D'] > 80), 'Stoch_Signal'] = -1
-    
-    # VWAP Signal
-    signals['VWAP_Signal'] = np.where(df['Close'] > df['VWAP'], 1, -1)
-    
-    # Combine all signals with weighting
-    weights = {
-        'SMA_Signal': 0.2,
-        'RSI_Signal': 0.25,
-        'MACD_Signal': 0.25,
-        'Stoch_Signal': 0.15,
-        'VWAP_Signal': 0.15
-    }
-    
-    signals['Final_Signal'] = sum(signals[col] * weight for col, weight in weights.items())
     return signals
