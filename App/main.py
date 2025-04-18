@@ -19,4 +19,4 @@ elif page == "Stock Screener":
 elif page == "Options Pricing":
     options_pricing.show()  # Ensure options_pricing.py has a show() function
 elif page == "Option Chain Analysis":
-    option_chain_analysis.show()  # Ensure option_chain_analysis.py has a show() function
+    option_chain_analysis.show()  # Ensure option_chain_analysis.py has a show() function bb
