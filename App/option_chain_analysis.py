@@ -5,14 +5,14 @@ import plotly.graph_objects as go
 import yfinance as yf
 import scipy.stats as stats
 
-# 🎯 **Main Show Function**
+# Main Show Function
 def show():
     st.title("📊 Advanced Option Chain Analysis")
 
-    # 📌 **User Input for Stock Ticker**
+    # User Input for Stock Ticker
     ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, SPY)", "AAPL")
 
-    # 📌 **Fetch & Display Option Chain Data**
+    #Fetch & Display Option Chain Data
     if st.button("Load Option Chain"):
         # Fetch current stock data
         stock = yf.Ticker(ticker)
@@ -26,13 +26,13 @@ def show():
             st.subheader(f"📜 Option Chain for {ticker}")
             st.dataframe(option_chain_data)
 
-            # 📌 **Visualizations**
+            #Visualizations
             visualize_bid_ask_spread(option_chain_data)
             visualize_open_interest(option_chain_data)
             visualize_volatility_surface(option_chain_data)
             visualize_greeks(option_chain_data)
 
-# 📌 **Fetch Live Option Chain Data with Accurate Greeks**
+# Fetch Live Option Chain Data with Accurate Greeks
 def get_option_chain(ticker, current_price):
     try:
         stock = yf.Ticker(ticker)
@@ -117,7 +117,7 @@ def get_option_chain(ticker, current_price):
         st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
 
-# 📌 **Visualization for Bid-Ask Spread**
+#Visualization for Bid-Ask Spread
 def visualize_bid_ask_spread(data):
     st.subheader("📈 Bid-Ask Spread")
     fig = go.Figure()
@@ -133,14 +133,14 @@ def visualize_bid_ask_spread(data):
     else:
         st.warning("No bid-ask data available for visualization")
 
-# 📌 **Visualization for Open Interest**
+#Visualization for Open Interest
 def visualize_open_interest(data):
     st.subheader("📊 Open Interest Across Strikes")
     fig = go.Figure(go.Bar(x=data["strike"], y=data["openInterest"], marker_color="blue"))
     fig.update_layout(title="Open Interest", xaxis_title="Strike Price", yaxis_title="Open Interest")
     st.plotly_chart(fig, use_container_width=True)
 
-# 📌 **Volatility Surface Plot**
+# Volatility Surface Plot
 def visualize_volatility_surface(data):
     st.subheader("🌎 Implied Volatility Surface")
 
@@ -163,7 +163,7 @@ def visualize_volatility_surface(data):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# 📌 **Visualization for Greeks**
+#Visualization for Greeks
 def visualize_greeks(data):
     st.subheader("📉 Option Greeks Across Strikes")
 
@@ -177,6 +177,6 @@ def visualize_greeks(data):
     fig.update_layout(title="Greeks Analysis", xaxis_title="Strike Price", yaxis_title="Value")
     st.plotly_chart(fig, use_container_width=True)
 
-# 📌 **Run the App**
+# Run the App
 if __name__ == "__main__":
     show()
